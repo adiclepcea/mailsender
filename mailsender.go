@@ -10,12 +10,24 @@ import (
 	"net/smtp"
 )
 
+//MailSender contains the methods for sending mail
+type MailSender interface {
+	SendMailTLS(server string, tlsconfig *tls.Config, usermail string, pass string, ms MailStruct) (int, error)
+	SendMail(server string, usermail string, pass string, ms MailStruct) (int, error)
+	SendMailWithoutAuth(server string, ms MailStruct) (int, error)
+}
+
 //MailStruct holds the basic mail fields
 type MailStruct struct {
 	From    mail.Address
 	To      mail.Address
 	Subject string
 	Body    string
+}
+
+//Impl implements the sender
+type Impl struct {
+	MailSender
 }
 
 func messageFromMailStruct(ms MailStruct) []byte {
@@ -35,10 +47,10 @@ func messageFromMailStruct(ms MailStruct) []byte {
 
 }
 
-//CreateTlsConfigWithCA will create a tls configuration that will
+//CreateTLSConfigWithCA will create a tls configuration that will
 //check for the validity of the server certificate against a specified CA
 //This is most likely to happen when you own sign your certificates.
-func CreateTlsConfigWithCA(serverName string, caFile string) (*tls.Config, error) {
+func CreateTLSConfigWithCA(serverName string, caFile string) (*tls.Config, error) {
 
 	caCert, err := ioutil.ReadFile(caFile)
 	if err != nil {
@@ -57,26 +69,26 @@ func CreateTlsConfigWithCA(serverName string, caFile string) (*tls.Config, error
 	}, nil
 }
 
-//createInsecureTlsConfig will create a tls configuration that does
+//CreateInsecureTLSConfig will create a tls configuration that does
 //not check for the validity of the server certificate
-func CreateInsecureTlsConfig(serverName string) *tls.Config {
+func CreateInsecureTLSConfig(serverName string) *tls.Config {
 	return &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         serverName,
 	}
 }
 
-//createTlsConfig will create a tls configuration that will
+//CreateTLSConfig will create a tls configuration that will
 //check for tha validity of the server certificate against
 //a known authority signed CA
-func CreateTlsConfig(serverName string) *tls.Config {
+func CreateTLSConfig(serverName string) *tls.Config {
 	return &tls.Config{
 		ServerName: serverName,
 	}
 }
 
-//SendMailTls send the mail after the tls params have been set
-func SendMailTls(server string, tlsconfig *tls.Config, usermail string, pass string, ms MailStruct) (int, error) {
+//SendMailTLS send the mail after the tls params have been set
+func (impl *Impl) SendMailTLS(server string, tlsconfig *tls.Config, usermail string, pass string, ms MailStruct) (int, error) {
 	host, _, err := net.SplitHostPort(server)
 	if err != nil {
 		return 0, err
@@ -97,7 +109,7 @@ func SendMailTls(server string, tlsconfig *tls.Config, usermail string, pass str
 }
 
 //SendMail will send a mail using authentication without encryption
-func SendMail(server string, usermail string, pass string, ms MailStruct) (int, error) {
+func (impl *Impl) SendMail(server string, usermail string, pass string, ms MailStruct) (int, error) {
 
 	host, _, err := net.SplitHostPort(server)
 	if err != nil {
@@ -116,8 +128,7 @@ func SendMail(server string, usermail string, pass string, ms MailStruct) (int, 
 }
 
 //SendMailWithoutAuth sends a mail without using authentication
-func SendMailWithoutAuth(server string, ms MailStruct) (int, error) {
-
+func (impl *Impl) SendMailWithoutAuth(server string, ms MailStruct) (int, error) {
 	host, _, err := net.SplitHostPort(server)
 	if err != nil {
 		return 0, err

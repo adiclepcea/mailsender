@@ -2,21 +2,23 @@ package main
 
 import (
 	"fmt"
-	"github.com/adiclepcea/mailsender"
 	"log"
 	"net/mail"
+
+	"github.com/adiclepcea/mailsender"
 )
 
 func main() {
 
 	ms := mailsender.MailStruct{
-		From:    mail.Address{"User Name", "user@server.com"},
-		To:      mail.Address{"Destination", "destination@destinationserver.com"},
+		From:    mail.Address{Name: "User Name", Address: "user@server.com"},
+		To:      mail.Address{Name: "Destination", Address: "destination@destinationserver.com"},
 		Subject: "Your subject",
 		Body:    "Just a test mail\nOn two lines",
 	}
 
 	servername := "mail.server.com:587"
+	impl := mailsender.Impl{}
 
 	/*
 		//This is if you want to use TLS for sending the mail
@@ -28,10 +30,10 @@ func main() {
 		}
 
 		tlsconfig := mailsender.CreateTlsConfig(host)
-		n, err := mailsender.SendMailTls(servername, tlsconfig, "user@server.com", "password", ms)
+		n, err := impl.SendMailTls(servername, tlsconfig, "user@server.com", "password", ms)
 	*/
 
-	n, err := mailsender.SendMail(servername, "user@server.com", "password", ms)
+	n, err := impl.SendMail(servername, "user@server.com", "password", ms)
 
 	if err != nil {
 		log.Println(err)
