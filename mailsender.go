@@ -19,10 +19,11 @@ type MailSender interface {
 
 //MailStruct holds the basic mail fields
 type MailStruct struct {
-	From    mail.Address
-	To      mail.Address
-	Subject string
-	Body    string
+	From     mail.Address
+	To       mail.Address
+	Subject  string
+	Body     string
+	Password string
 }
 
 //Impl implements the sender

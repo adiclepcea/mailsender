@@ -1,14 +1,14 @@
 {
   "mailsetup":{
-    "server":"maiserver.domain.net",
-    "usermail":"mail@domain.net",
-    "password":"",
-    "insecuretls":"false",
-    "usetls":"true",
-    "useauth":"true"
+    "server":"mai.server.net:465",
+    "defaultmail":"user@domain.ro",
+    "defaultpassword":"secret",
+    "insecuretls":false,
+    "usetls":true,
+    "useauth":true
   },
   "servicesetup":{
-    "port":"8080",
+    "port":8080,
     "certfile":"",
     "keyfile":""
   }

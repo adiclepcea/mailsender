@@ -7,7 +7,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/mail"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/adiclepcea/mailsender"
@@ -21,13 +23,13 @@ type MailSenderService struct {
 
 //MailSetup represents the default setup for sending mail
 type MailSetup struct {
-	Server         string `json:"server"`
-	UserMail       string `json:"usermail"`
-	Password       string `json:"password"`
-	UseInsecureTLS bool   `json:"insecuretls"`
-	ServerCAFile   string `json:"mailservercafile"`
-	UseTLS         bool   `json:"usetls"`
-	UseAUTH        bool   `json:"useauth"`
+	Server          string `json:"server"`
+	DefaultMail     string `json:"defaultmail"`
+	DefaultPassword string `json:"defaultpassword"`
+	UseInsecureTLS  bool   `json:"insecuretls"`
+	ServerCAFile    string `json:"mailservercafile"`
+	UseTLS          bool   `json:"usetls"`
+	UseAUTH         bool   `json:"useauth"`
 }
 
 //Setup respresents the setup for the service
@@ -84,15 +86,16 @@ func (mss *MailSenderService) SendMail(msender mailsender.MailSender, ms mailsen
 			} else {
 				log.Println("known")
 				//we should use tls with a well known CA
-				tlsconfig = mailsender.CreateTLSConfig(mss.Mail.Server)
+				tlsconfig = mailsender.CreateTLSConfig(host)
 			}
-			_, err = msender.SendMailTLS(mss.Mail.Server, tlsconfig, mss.Mail.UserMail, mss.Mail.Password, ms)
+			log.Printf("%s, user=%s, password=%s", mss.Mail.Server, ms.From.Address, ms.Password)
+			_, err = msender.SendMailTLS(mss.Mail.Server, tlsconfig, ms.From.Address, ms.Password, ms)
 			if err != nil {
 				return err
 			}
 		} else {
 			//we send mail with auth, but without TLS
-			_, err := msender.SendMail(mss.Mail.Server, mss.Mail.UserMail, mss.Mail.Password, ms)
+			_, err := msender.SendMail(mss.Mail.Server, ms.From.Address, ms.Password, ms)
 			if err != nil {
 				return nil
 			}
@@ -110,14 +113,75 @@ func (mss *MailSenderService) SendMail(msender mailsender.MailSender, ms mailsen
 	return nil
 }
 
+func validateEmail(email string) bool {
+	Re := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+	return Re.MatchString(email)
+}
+
+//ValidateMailStruct will validate the mail struct received as json against the rules
+func (mss *MailSenderService) ValidateMailStruct(ms *mailsender.MailStruct) (
+	*mailsender.MailStruct, error) {
+
+	if ms.To.Address == "" {
+		return nil, fmt.Errorf("No destination address provided")
+	} else if !validateEmail(ms.To.Address) {
+		return nil, fmt.Errorf("%s is not a valid destination address", ms.To.Address)
+	}
+	if ms.From.Address == "" {
+		ms.From = mail.Address{Name: ms.From.Name, Address: mss.Mail.DefaultMail}
+		ms.Password = mss.Mail.DefaultPassword
+	} else if !validateEmail(ms.From.Address) {
+		return nil, fmt.Errorf("%s is not a valid mail address", ms.From.String())
+	} else if ms.Password == "" {
+		return nil, fmt.Errorf("No password provided for this address")
+	}
+
+	return ms, nil
+
+}
+
 //SendMailMessage is the method that links the REST call to the sendMail method
 func (mss *MailSenderService) SendMailMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte("Sorry, only POST allowed!"))
+		return
+	}
+	decoder := json.NewDecoder(r.Body)
 
+	var ms mailsender.MailStruct
+
+	err := decoder.Decode(&ms)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	_, err = mss.ValidateMailStruct(&ms)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	msender := &mailsender.Impl{}
+	err = mss.SendMail(msender, ms)
+	log.Println(ms.From)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.Write([]byte("OK"))
 }
 
 //Run starts the service with a REST Api
 func (mss *MailSenderService) Run() error {
 	http.HandleFunc("/sendmail", mss.SendMailMessage)
+	server := fmt.Sprintf(":%d", mss.Setup.Port)
+	http.ListenAndServe(server, nil)
 
 	return nil
 }
