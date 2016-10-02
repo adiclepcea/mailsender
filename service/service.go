@@ -2,8 +2,10 @@ package service
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -177,11 +179,77 @@ func (mss *MailSenderService) SendMailMessage(w http.ResponseWriter, r *http.Req
 	w.Write([]byte("OK"))
 }
 
+func fileCanBeUsed(fileName string) (bool, error) {
+	var err error
+	if _, err = os.Stat("config.json"); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func loadCA(fileName string) ([]byte, error) {
+	if exists, err := fileCanBeUsed(fileName); !exists {
+		return nil, err
+	}
+	caCert, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	return caCert, nil
+}
+
 //Run starts the service with a REST Api
 func (mss *MailSenderService) Run() error {
+	var caCert []byte
+	var caCertPool *x509.CertPool
+	var err error
+	var server *http.Server
+	var tlsConfig *tls.Config
+
 	http.HandleFunc("/sendmail", mss.SendMailMessage)
-	server := fmt.Sprintf(":%d", mss.Setup.Port)
-	http.ListenAndServe(server, nil)
+
+	//load the CAFile to authenticate the clients if needed
+	if mss.Setup.CAFile != "" {
+		caCert, err = loadCA(mss.Setup.CAFile)
+		if err != nil {
+			log.Fatalf("CA file %s can't be used: %s", mss.Setup.CAFile, err.Error())
+		}
+		caCertPool = x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+	}
+
+	//load the CertFile and  KeyFile to use TLS if needed
+	if mss.Setup.CertFile != "" {
+		if ok, err := fileCanBeUsed(mss.Setup.CertFile); !ok {
+			log.Fatalf("CertFile %s can't be used: %s", mss.Setup.CAFile, err)
+		}
+		if ok, err := fileCanBeUsed(mss.Setup.KeyFile); !ok {
+			log.Fatalf("KeyFile %s can't be used: %s", mss.Setup.KeyFile, err)
+		}
+		if caCert != nil {
+			tlsConfig = &tls.Config{
+				ClientCAs:  caCertPool,
+				ClientAuth: tls.RequireAndVerifyClientCert,
+			}
+		} else {
+			tlsConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+		}
+		tlsConfig.BuildNameToCertificate()
+		server = &http.Server{
+			TLSConfig: tlsConfig,
+			Addr:      fmt.Sprintf(":%d", mss.Setup.Port),
+		}
+		server.ListenAndServeTLS(mss.Setup.CertFile, mss.Setup.KeyFile)
+	} else {
+		//start the server without tls
+		server = &http.Server{
+			Addr: fmt.Sprintf(":%d", mss.Setup.Port),
+		}
+		server.ListenAndServe()
+	}
 
 	return nil
 }
