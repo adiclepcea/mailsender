@@ -1,3 +1,5 @@
+[![Build Status](https://api.travis-ci.org/adiclepcea/mailsender.svg)](https://api.travis-ci.org/adiclepcea/mailsender.svg)
+
 #Mailsender
 
 ###Description
