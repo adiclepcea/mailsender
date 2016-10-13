@@ -121,6 +121,7 @@ func validateEmail(email string) bool {
 }
 
 //ValidateMailStruct will validate the mail struct received as json against the rules
+//It will also put the default mail and password values if they are needed
 func (mss *MailSenderService) ValidateMailStruct(ms *mailsender.MailStruct) (
 	*mailsender.MailStruct, error) {
 
@@ -131,11 +132,15 @@ func (mss *MailSenderService) ValidateMailStruct(ms *mailsender.MailStruct) (
 	}
 	if ms.From.Address == "" {
 		ms.From = mail.Address{Name: ms.From.Name, Address: mss.Mail.DefaultMail}
-		ms.Password = mss.Mail.DefaultPassword
+		if mss.Mail.UseAUTH {
+			ms.Password = mss.Mail.DefaultPassword
+		}
 	} else if !validateEmail(ms.From.Address) {
 		return nil, fmt.Errorf("%s is not a valid mail address", ms.From.String())
 	} else if ms.Password == "" {
-		return nil, fmt.Errorf("No password provided for this address")
+		if mss.Mail.UseAUTH {
+			return nil, fmt.Errorf("No password provided for this address")
+		}
 	}
 
 	return ms, nil
