@@ -1,8 +1,8 @@
 [![Build Status](https://api.travis-ci.org/adiclepcea/mailsender.svg)](https://api.travis-ci.org/adiclepcea/mailsender.svg)
 
-#Mailsender
+# Mailsender
 
-###Description
+### Description
 
 Simple library to send mails from go.
 It is intended to ease the sending of mails by adding anothe rlayer on top of go smtp library.
